@@ -1,0 +1,51 @@
+---
+# tasks file for setup-pcp
+- name: Install packages
+  become: True
+  package:
+    name: "{{ item }}"
+    update_cache: yes
+    state: latest
+  with_items:
+    - rsync
+    - httpd
+    - pcp
+    - pcp-system-tools
+    - pcp-webapi
+    - pcp-webapp-vector
+
+- name: Deploy server_name.conf
+  become: True
+  template:
+    src: server_name.conf.j2
+    dest: /etc/httpd/conf.d/server_name.conf
+    owner: root
+    group: root
+    mode: 0644
+    seuser: system_u
+    serole: object_r
+    setype: httpd_config_t
+    selevel: s0
+  notify:
+    - Restart httpd
+
+- name: Rsync /usr/share/pcp/webapps/vector to /var/www/html/vector
+  become: True
+  synchronize:
+    src: /usr/share/pcp/webapps/vector
+    dest: /var/www/html
+  delegate_to: "{{ inventory_hostname }}"
+  notify:
+    - Restart httpd
+
+- name: Enable and start daemons
+  become: True
+  systemd:
+    name: "{{ item }}"
+    enabled: yes
+    state: started
+  with_items:
+    - pmcd
+    - pmlogger
+    - pmwebd
+    - httpd
